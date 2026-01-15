@@ -649,7 +649,7 @@ export default {
 
         // Connect to socket for real-time updates
         // Use the same base URL as the API (extract from sessionService)
-        const socketUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/sessions', '') || 'http://localhost:3001'
+        const socketUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/sessions', '') '
         socket = io(socketUrl)
         socket.emit('join-session', {
           sessionId: sessionId.value,
