@@ -130,7 +130,7 @@ export default {
         sessionStorage.setItem(`session_${sessionId.value}`, JSON.stringify(sessionData))
         
         router.push({
-          path: `/session/${sessionId.value}`,
+          path: `/prepare/${sessionId.value}`,
           state: { sessionData }
         })
       } catch (err) {

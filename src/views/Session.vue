@@ -569,8 +569,17 @@ export default {
 
         // Create and publish local tracks
         console.log('Creating microphone and camera tracks...')
+        
+        // Get preferred devices from sessionStorage (set in PrepareSession)
+        const preferredCamera = sessionStorage.getItem('preferredCamera') || null
+        const preferredMicrophone = sessionStorage.getItem('preferredMicrophone') || null
+        const preferredVideoEnabled = sessionStorage.getItem('preferredVideoEnabled') !== 'false'
+        const preferredAudioEnabled = sessionStorage.getItem('preferredAudioEnabled') !== 'false'
+        
         try {
-          localTrack = await AgoraRTC.createMicrophoneAndCameraTracks({
+          // Create tracks with preferred device selection if available
+          // Note: Agora SDK uses cameraId and microphoneId in config
+          const config = {
             encoderConfig: {
               width: 640,
               height: 360,
@@ -578,10 +587,33 @@ export default {
               bitrateMin: 600,
               bitrateMax: 1000
             }
-          })
+          }
+          
+          // Set preferred devices if available
+          if (preferredCamera) {
+            config.cameraId = preferredCamera
+          }
+          if (preferredMicrophone) {
+            config.microphoneId = preferredMicrophone
+          }
+          
+          localTrack = await AgoraRTC.createMicrophoneAndCameraTracks(config)
+          
+          // Apply preferred enabled states
+          if (!preferredVideoEnabled && localTrack[1]) {
+            await localTrack[1].setEnabled(false)
+            videoEnabled.value = false
+          }
+          if (!preferredAudioEnabled && localTrack[0]) {
+            await localTrack[0].setEnabled(false)
+            audioEnabled.value = false
+          }
+          
           console.log('Local tracks created:', {
             audio: !!localTrack[0],
-            video: !!localTrack[1]
+            video: !!localTrack[1],
+            usingPreferredCamera: !!preferredCamera,
+            usingPreferredMicrophone: !!preferredMicrophone
           })
         } catch (trackError) {
           console.error('Failed to create tracks:', trackError)

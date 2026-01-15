@@ -202,7 +202,7 @@ export default {
         sessionStorage.setItem(`session_${createdSessionData.value.sessionId}`, JSON.stringify(createdSessionData.value))
         
         router.push({
-          path: `/session/${createdSessionData.value.sessionId}`,
+          path: `/prepare/${createdSessionData.value.sessionId}`,
           state: { sessionData: createdSessionData.value }
         })
       }
@@ -232,7 +232,7 @@ export default {
         sessionStorage.setItem(`session_${sessionId.value.trim()}`, JSON.stringify(sessionData))
         
         router.push({
-          path: `/session/${sessionId.value.trim()}`,
+          path: `/prepare/${sessionId.value.trim()}`,
           state: { sessionData }
         })
       } catch (err) {
