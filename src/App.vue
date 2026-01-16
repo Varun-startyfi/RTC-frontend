@@ -7,15 +7,21 @@
     <main class="app-main" :class="{ 'full-height': isSessionRoute }">
       <router-view />
     </main>
+
+    <ToastContainer />
   </div>
 </template>
 
 <script>
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
+import ToastContainer from './components/ToastContainer.vue'
 
 export default {
   name: 'App',
+  components: {
+    ToastContainer
+  },
   setup() {
     const route = useRoute()
     const isSessionRoute = computed(() => {
@@ -38,24 +44,25 @@ export default {
 }
 
 .app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  padding: 1.25rem 2.5rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.8rem;
+  font-size: 1.85rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  letter-spacing: 0.2px;
 }
 
 .app-main {
   flex: 1;
   min-height: calc(100vh - 80px);
-  background: #f8f9fa;
+  background: var(--color-surface-muted);
 }
 
 .app-main.full-height {

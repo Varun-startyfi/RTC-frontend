@@ -64,9 +64,10 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import sessionService from '../services/sessionService'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'JoinSession',
@@ -80,6 +81,16 @@ export default {
     const loading = ref(true)
     const joining = ref(false)
     const error = ref('')
+    const { showToast } = useToast()
+
+    watch(
+      () => error.value,
+      (value) => {
+        if (value) {
+          showToast(value, 'error')
+        }
+      }
+    )
 
     const loadSessionInfo = async () => {
       try {
@@ -164,18 +175,20 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2.5rem;
+  background: var(--gradient-hero);
   box-sizing: border-box;
 }
 
 .join-container {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  max-width: 500px;
+  background: var(--color-surface-glass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 520px;
   width: 100%;
-  padding: 2.5rem;
+  padding: 2.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
 }
 
 .loading-state,
@@ -185,10 +198,10 @@ export default {
 }
 
 .loading-state .spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(91, 124, 250, 0.15);
+  border-top: 4px solid var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
@@ -201,17 +214,17 @@ export default {
 
 .error-state i {
   font-size: 3rem;
-  color: #dc3545;
+  color: var(--color-danger);
   margin-bottom: 1rem;
 }
 
 .error-state h2 {
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 0.5rem;
 }
 
 .error-state p {
-  color: #666;
+  color: var(--color-text-muted);
   margin-bottom: 1.5rem;
 }
 
@@ -225,7 +238,7 @@ export default {
 }
 
 .session-header h2 {
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
@@ -239,13 +252,13 @@ export default {
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-sm);
 }
 
 .session-details p {
   margin: 0;
-  color: #555;
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -253,7 +266,7 @@ export default {
 }
 
 .session-details strong {
-  color: #333;
+  color: var(--color-text);
 }
 
 .join-form-content {
@@ -271,35 +284,37 @@ export default {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #555;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .form-input {
   width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 1rem;
-  transition: border-color 0.3s ease;
+  background: #fff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: rgba(91, 124, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.2);
 }
 
 .form-input:disabled {
-  background: #f8f9fa;
+  background: #f1f5f9;
   cursor: not-allowed;
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 0.85rem 1.6rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
@@ -314,13 +329,13 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 10px 25px rgba(91, 124, 250, 0.4);
 }
 
 .btn-large {

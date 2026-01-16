@@ -123,7 +123,7 @@
           <i class="fas fa-arrow-left"></i>
           Go Back
         </button>
-        <button @click="joinSession" class="btn btn-primary" :disabled="!ready || joining">
+        <button @click="joinSession" class="btn btn-primary" :disabled="joining">
           <i :class="joining ? 'fas fa-spinner fa-spin' : 'fas fa-sign-in-alt'"></i>
           {{ joining ? 'Joining...' : 'Join Session' }}
         </button>
@@ -138,8 +138,9 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'PrepareSession',
@@ -158,6 +159,7 @@ export default {
     const ready = ref(false)
     const joining = ref(false)
     const error = ref('')
+    const { showToast } = useToast()
 
     const sessionId = ref(route.params.sessionId || route.params.id)
     const sessionData = route.state?.sessionData || JSON.parse(sessionStorage.getItem(`session_${sessionId.value}`) || 'null')
@@ -166,6 +168,15 @@ export default {
     const isHost = computed(() => {
       return sessionData?.role === 'host' || sessionData?.createdBy === sessionData?.userId
     })
+
+    watch(
+      () => error.value,
+      (value) => {
+        if (value) {
+          showToast(value, 'error')
+        }
+      }
+    )
 
     let localTracks = ref([])
     let audioContext = null
@@ -199,6 +210,11 @@ export default {
       try {
         // Stop existing tracks
         await stopPreview()
+
+        if (!videoEnabled.value && !audioEnabled.value) {
+          ready.value = true
+          return
+        }
 
         const constraints = {
           video: videoEnabled.value
@@ -328,7 +344,7 @@ export default {
     }
 
     const joinSession = async () => {
-      if (!ready.value || joining.value) return
+      if (joining.value) return
 
       joining.value = true
       error.value = ''
@@ -419,18 +435,19 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2.5rem;
+  background: var(--gradient-hero);
 }
 
 .prepare-container {
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 900px;
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(18px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 960px;
   width: 100%;
-  padding: 2.5rem;
+  padding: 2.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .prepare-header {
@@ -440,8 +457,8 @@ export default {
 
 .prepare-header h2 {
   margin: 0 0 0.5rem 0;
-  font-size: 2rem;
-  color: #333;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  color: var(--color-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -454,7 +471,7 @@ export default {
 
 .subtitle {
   margin: 0;
-  color: #666;
+  color: var(--color-text-muted);
   font-size: 1rem;
 }
 
@@ -467,10 +484,10 @@ export default {
   width: 100%;
   aspect-ratio: 16/9;
   background: #000;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 1.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .preview-video {
@@ -529,8 +546,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #333;
-  font-weight: 500;
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .audio-label i {
@@ -579,31 +596,31 @@ export default {
   justify-content: center;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border: 2px solid #ddd;
-  border-radius: 12px;
-  background: white;
-  color: #333;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .device-btn:hover {
-  border-color: #667eea;
-  background: #f8f9ff;
+  border-color: rgba(91, 124, 250, 0.5);
+  background: #f5f7ff;
 }
 
 .device-btn.active {
-  border-color: #4caf50;
-  background: #f1f8f4;
-  color: #2e7d32;
+  border-color: rgba(34, 197, 94, 0.6);
+  background: rgba(34, 197, 94, 0.08);
+  color: #166534;
 }
 
 .device-btn.muted {
-  border-color: #dc3545;
-  background: #fff5f5;
-  color: #c82333;
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
 }
 
 .device-btn i {
@@ -618,10 +635,10 @@ export default {
 
 .device-select {
   padding: 0.75rem 1rem;
-  border: 2px solid #ddd;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: white;
-  color: #333;
+  color: var(--color-text);
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -629,8 +646,8 @@ export default {
 
 .device-select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: rgba(91, 124, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.2);
 }
 
 .session-info {
@@ -638,16 +655,17 @@ export default {
   flex-direction: column;
   gap: 0.75rem;
   padding: 1.25rem;
-  background: #f8f9fa;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-md);
   margin-bottom: 2rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .info-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: #555;
+  color: var(--color-text-muted);
   font-size: 0.95rem;
 }
 
@@ -657,7 +675,7 @@ export default {
 }
 
 .info-item strong {
-  color: #333;
+  color: var(--color-text);
 }
 
 .info-item.host-badge {
@@ -687,7 +705,7 @@ export default {
 .btn {
   padding: 1rem 2rem;
   border: none;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -703,33 +721,33 @@ export default {
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: #1f2937;
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #5a6268;
+  background: #111827;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.3);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 12px 28px rgba(91, 124, 250, 0.4);
 }
 
 .error-message {
   margin-top: 1.5rem;
   padding: 1rem 1.5rem;
-  background: #fff5f5;
-  border: 2px solid #dc3545;
-  border-radius: 8px;
-  color: #c82333;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-sm);
+  color: #b91c1c;
   display: flex;
   align-items: center;
   gap: 0.75rem;

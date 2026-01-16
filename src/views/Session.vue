@@ -29,6 +29,15 @@
       <button @click="toggleVideo" class="floating-btn" :class="{ muted: !videoEnabled }" title="Toggle Camera">
         <i :class="videoEnabled ? 'fas fa-video' : 'fas fa-video-slash'"></i>
       </button>
+      <button
+        @click="toggleVirtualBgMenu"
+        class="floating-btn"
+        :class="{ active: virtualBgEnabled }"
+        :disabled="!videoEnabled"
+        title="Virtual Background"
+      >
+        <i class="fas fa-image"></i>
+      </button>
       <button @click="endSession" class="floating-btn end-btn" title="End Session">
         <i class="fas fa-phone-slash"></i>
       </button>
@@ -128,9 +137,49 @@
       </div>
     </div>
 
-    <div v-if="error" class="error-message">
-      <i class="fas fa-exclamation-triangle"></i>
-      {{ error }}
+    <!-- Virtual Background Modal -->
+    <div v-if="showVirtualBgMenu" class="modal-overlay" @click.self="showVirtualBgMenu = false">
+      <div class="modal-content modal-compact">
+        <div class="modal-header">
+          <h3><i class="fas fa-image"></i> Virtual Background</h3>
+          <button @click="showVirtualBgMenu = false" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="virtual-bg-grid">
+            <button
+              @click="disableVirtualBackground"
+              class="virtual-bg-option"
+              :class="{ active: !virtualBgEnabled }"
+            >
+              <i class="fas fa-times"></i> None
+            </button>
+            <button
+              @click="setVirtualBackground('blur')"
+              class="virtual-bg-option"
+              :class="{ active: virtualBgEnabled && virtualBgType === 'blur' }"
+            >
+              <i class="fas fa-adjust"></i> Blur
+            </button>
+            <button
+              @click="showCustomBgInput = !showCustomBgInput"
+              class="virtual-bg-option"
+            >
+              <i class="fas fa-upload"></i> Custom Image
+            </button>
+          </div>
+          <div v-if="showCustomBgInput" class="custom-bg-input">
+            <input
+              type="text"
+              v-model="customBgUrl"
+              placeholder="Enter image URL"
+              @keyup.enter="setVirtualBackground('image', customBgUrl)"
+            />
+            <button @click="setVirtualBackground('image', customBgUrl)" class="btn-apply">Apply</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Share Modal -->
@@ -165,12 +214,14 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AgoraRTC from 'agora-rtc-sdk-ng'
 import AgoraRTM from 'agora-rtm-sdk'
+import VirtualBackgroundExtension from 'agora-extension-virtual-background'
 import io from 'socket.io-client'
 import sessionService from '../services/sessionService'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'Session',
@@ -199,6 +250,15 @@ export default {
     const rtmReady = ref(false)
     const publicLink = computed(() => `${window.location.origin}/join/${sessionId.value}`)
 
+    // Virtual background state
+    const virtualBgEnabled = ref(false)
+    const virtualBgType = ref(null)
+    const virtualBgImage = ref(null)
+    const showVirtualBgMenu = ref(false)
+    const showCustomBgInput = ref(false)
+    const customBgUrl = ref('')
+    const { showToast } = useToast()
+
     let agoraClient = null
     let localTrack = null
     let screenTrack = null
@@ -206,6 +266,8 @@ export default {
     let sessionData = null
     let rtmClient = null
     let rtmChannel = null
+    let virtualBackgroundExtension = null
+    let virtualBackgroundProcessor = null
 
     // Try to get sessionData from router state (Vue Router 4) or sessionStorage
     const getSessionDataFromState = () => {
@@ -299,6 +361,141 @@ export default {
         }
       } catch (err) {
         console.error('Error refreshing participant list:', err)
+      }
+    }
+
+    const toggleVirtualBgMenu = () => {
+      if (!videoEnabled.value) {
+        showToast('Enable your camera to use virtual backgrounds.', 'error')
+        return
+      }
+      showVirtualBgMenu.value = !showVirtualBgMenu.value
+      if (!showVirtualBgMenu.value) {
+        showCustomBgInput.value = false
+      }
+    }
+
+    watch(
+      () => error.value,
+      (value) => {
+        if (value) {
+          showToast(value, 'error')
+        }
+      }
+    )
+
+    const initVirtualBackground = async () => {
+      if (!localTrack || !localTrack[1] || virtualBackgroundProcessor) return true
+      try {
+        virtualBackgroundExtension = new VirtualBackgroundExtension()
+        if (AgoraRTC.registerExtensions) {
+          AgoraRTC.registerExtensions([virtualBackgroundExtension])
+        } else if (AgoraRTC.registerExtension) {
+          AgoraRTC.registerExtension(virtualBackgroundExtension)
+        }
+
+        virtualBackgroundProcessor = virtualBackgroundExtension.createProcessor()
+        await virtualBackgroundProcessor.init()
+        return true
+      } catch (vbError) {
+        console.warn('Virtual background initialization failed:', vbError)
+        virtualBackgroundExtension = null
+        virtualBackgroundProcessor = null
+        return false
+      }
+    }
+
+    const attachVirtualBackground = async () => {
+      if (!localTrack || !localTrack[1] || !virtualBackgroundProcessor) return
+      if (localTrack[1].pipe && localTrack[1].processorDestination) {
+        localTrack[1].pipe(virtualBackgroundProcessor).pipe(localTrack[1].processorDestination)
+        return
+      }
+      if (localTrack[1].addProcessor) {
+        await localTrack[1].addProcessor(virtualBackgroundProcessor)
+      }
+    }
+
+    const disableVirtualBackground = async () => {
+      if (!virtualBackgroundProcessor || !localTrack || !localTrack[1]) {
+        virtualBgEnabled.value = false
+        virtualBgType.value = null
+        virtualBgImage.value = null
+        return
+      }
+
+      try {
+        if (localTrack[1].getProcessors) {
+          const processors = localTrack[1].getProcessors()
+          if (processors && processors.includes(virtualBackgroundProcessor)) {
+            await localTrack[1].removeProcessor(virtualBackgroundProcessor)
+          }
+        } else if (localTrack[1].unpipe) {
+          localTrack[1].unpipe()
+        }
+
+        if (virtualBackgroundProcessor.disable) {
+          await virtualBackgroundProcessor.disable()
+        }
+      } catch (vbError) {
+        console.warn('Failed to disable virtual background:', vbError)
+      } finally {
+        virtualBgEnabled.value = false
+        virtualBgType.value = null
+        virtualBgImage.value = null
+      }
+    }
+
+    const setVirtualBackground = async (type, imageUrl = null) => {
+      if (!videoEnabled.value) {
+        showToast('Enable your camera to use virtual backgrounds.', 'error')
+        return
+      }
+
+      const ready = await initVirtualBackground()
+      if (!ready || !virtualBackgroundProcessor) {
+        showToast('Virtual background is not supported on this device.', 'error')
+        return
+      }
+
+      try {
+        if (type === 'blur') {
+          await virtualBackgroundProcessor.setOptions({
+            type: 'blur',
+            blurDegree: 2
+          })
+        } else if (type === 'image' && imageUrl) {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = () => reject(new Error('Failed to load image'))
+            img.src = imageUrl
+          })
+
+          await virtualBackgroundProcessor.setOptions({
+            type: 'img',
+            source: img
+          })
+        } else {
+          await disableVirtualBackground()
+          return
+        }
+
+        if (virtualBackgroundProcessor.enable) {
+          await virtualBackgroundProcessor.enable()
+        }
+        await attachVirtualBackground()
+
+        virtualBgEnabled.value = true
+        virtualBgType.value = type
+        virtualBgImage.value = type === 'image' ? imageUrl : null
+        showVirtualBgMenu.value = false
+        showCustomBgInput.value = false
+        customBgUrl.value = ''
+      } catch (vbError) {
+        console.error('Failed to set virtual background:', vbError)
+        showToast('Failed to apply virtual background.', 'error')
       }
     }
 
@@ -531,10 +728,13 @@ export default {
           participants.value = participants.value.filter(p => p.uid !== user.uid)
         })
 
+        // Get channel name from sessionData (use channelName if available, fallback to sessionId)
+        const channelName = sessionData.channelName || sessionData.session?.channelName || sessionId.value
+        
         // Join the channel
         console.log('Joining Agora channel...', {
           appId: sessionData.appId,
-          channel: sessionId.value,
+          channel: channelName,
           token: sessionData.token ? `${sessionData.token.substring(0, 20)}...` : 'missing',
           userId: sessionData.userId,
           userIdType: typeof sessionData.userId
@@ -544,7 +744,7 @@ export default {
           // For web clients, userId can be a string (account) or number (UID)
           const joinResult = await agoraClient.join(
             sessionData.appId,
-            sessionId.value,
+            channelName, // Use channelName instead of sessionId
             sessionData.token,
             sessionData.userId || null // Use userId string for account-based tokens
           )
@@ -598,6 +798,9 @@ export default {
           }
           
           localTrack = await AgoraRTC.createMicrophoneAndCameraTracks(config)
+
+          // Initialize virtual background (does not enable it by default)
+          await initVirtualBackground()
           
           // Apply preferred enabled states
           if (!preferredVideoEnabled && localTrack[1]) {
@@ -741,6 +944,9 @@ export default {
       if (localTrack && localTrack[1]) {
         if (videoEnabled.value) {
           await localTrack[1].setEnabled(false)
+          await disableVirtualBackground()
+          showVirtualBgMenu.value = false
+          showCustomBgInput.value = false
         } else {
           await localTrack[1].setEnabled(true)
         }
@@ -779,6 +985,11 @@ export default {
         } else {
           // Start screen sharing
           try {
+            // Disable virtual background while screen sharing
+            await disableVirtualBackground()
+            showVirtualBgMenu.value = false
+            showCustomBgInput.value = false
+
             // Unpublish camera video track first (Agora doesn't allow multiple video tracks)
             if (localTrack && localTrack[1]) {
               try {
@@ -947,7 +1158,10 @@ export default {
         }
 
         // Create and join channel
-        rtmChannel = rtmClient.createChannel(sessionId.value)
+        // Get channel name from sessionData (use channelName if available, fallback to sessionId)
+        const rtmChannelName = sessionData.channelName || sessionData.session?.channelName || sessionId.value
+        
+        rtmChannel = rtmClient.createChannel(rtmChannelName)
         
         // Set up channel event handlers
         rtmChannel.on('ChannelMessage', ({ text }, senderId, messageProps) => {
@@ -964,7 +1178,7 @@ export default {
 
         // Join the channel
         await rtmChannel.join()
-        console.log('RTM channel joined:', sessionId.value)
+        console.log('RTM channel joined:', rtmChannelName)
         rtmReady.value = true
 
       } catch (err) {
@@ -1055,6 +1269,24 @@ export default {
     }
 
     const cleanup = async () => {
+      // Cleanup virtual background
+      if (virtualBackgroundProcessor) {
+        try {
+          await disableVirtualBackground()
+        } catch (err) {
+          console.error('Error disabling virtual background during cleanup:', err)
+        }
+        try {
+          if (virtualBackgroundProcessor.release) {
+            await virtualBackgroundProcessor.release()
+          }
+        } catch (err) {
+          console.error('Error releasing virtual background processor:', err)
+        }
+        virtualBackgroundProcessor = null
+        virtualBackgroundExtension = null
+      }
+
       // Stop screen sharing if active
       if (screenTrack && isScreenSharing.value) {
         try {
@@ -1149,6 +1381,12 @@ export default {
       chatMessagesRef,
       rtmReady,
       publicLink,
+      virtualBgEnabled,
+      virtualBgType,
+      virtualBgImage,
+      showVirtualBgMenu,
+      showCustomBgInput,
+      customBgUrl,
       toggleAudio,
       toggleVideo,
       toggleScreenShare,
@@ -1156,7 +1394,10 @@ export default {
       sendChatMessage,
       formatTime,
       endSession,
-      copyShareLink
+      copyShareLink,
+      toggleVirtualBgMenu,
+      setVirtualBackground,
+      disableVirtualBackground
     }
   }
 }
@@ -1227,7 +1468,7 @@ export default {
   transform: translateX(-50%);
   display: flex;
   gap: 0.75rem;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(20px);
   padding: 0.75rem 1rem;
   border-radius: 50px;
@@ -1321,6 +1562,102 @@ export default {
   width: 1px;
   height: 60%;
   background: rgba(255, 255, 255, 0.2);
+}
+
+.floating-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Virtual Background Menu */
+.virtual-bg-option {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+
+.virtual-bg-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.virtual-bg-option.active {
+  background: rgba(102, 126, 234, 0.3);
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.virtual-bg-option i {
+  width: 20px;
+  text-align: center;
+}
+
+.custom-bg-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  margin-top: 0.25rem;
+}
+
+.custom-bg-input input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.custom-bg-input input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.custom-bg-input input:focus {
+  outline: none;
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-apply {
+  background: #667eea;
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-apply:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+}
+
+.modal-compact {
+  max-width: 420px;
+}
+
+.virtual-bg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
 }
 
 .video-container {
@@ -1630,42 +1967,6 @@ export default {
   box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
 }
 
-.error-message {
-  position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(220, 53, 69, 0.95);
-  backdrop-filter: blur(20px);
-  color: white;
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  box-shadow: 0 8px 32px rgba(220, 53, 69, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.1);
-  z-index: 200;
-  max-width: 90%;
-  font-weight: 500;
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-.error-message i {
-  font-size: 1.2rem;
-}
-
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -1673,7 +1974,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(15, 23, 42, 0.8);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -1693,9 +1994,9 @@ export default {
 }
 
 .modal-content {
-  background: rgba(26, 26, 26, 0.98);
+  background: rgba(17, 24, 39, 0.98);
   backdrop-filter: blur(20px);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   max-width: 600px;
   width: 100%;
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.7),

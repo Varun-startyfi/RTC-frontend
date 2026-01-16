@@ -116,9 +116,10 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import sessionService from '../services/sessionService'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'Home',
@@ -130,11 +131,21 @@ export default {
     const sessionId = ref('')
     const loading = ref(false)
     const error = ref('')
+    const { showToast } = useToast()
     const showLinkModal = ref(false)
     const publicLink = ref('')
     const linkCopied = ref(false)
     const createdSessionData = ref(null)
     const linkInput = ref(null)
+
+    watch(
+      () => error.value,
+      (value) => {
+        if (value) {
+          showToast(value, 'error')
+        }
+      }
+    )
 
     const createSession = async () => {
       if (!userName.value.trim()) return
@@ -265,51 +276,57 @@ export default {
 
 <style scoped>
 .home {
-  max-width: 1200px;
+  min-height: calc(100vh - 80px);
   margin: 0 auto;
-  padding: 2rem;
+  padding: 3.5rem 2.5rem 4rem;
+  background: var(--gradient-hero);
+  color: #e2e8f0;
 }
 
 .hero-section {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
 }
 
 .hero-section h2 {
-  font-size: 2.5rem;
-  color: #333;
-  margin-bottom: 1rem;
+  font-size: clamp(2.2rem, 4vw, 3.1rem);
+  color: #f8fafc;
+  margin-bottom: 0.8rem;
+  letter-spacing: 0.4px;
 }
 
 .hero-section p {
-  font-size: 1.2rem;
-  color: #666;
-  margin-bottom: 2rem;
+  font-size: 1.1rem;
+  color: rgba(248, 250, 252, 0.7);
+  margin-bottom: 2.5rem;
 }
 
 .action-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 2rem;
   margin-top: 2rem;
 }
 
 .create-session-card,
 .join-session-card {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
+  background: var(--color-surface-glass);
+  border-radius: var(--radius-lg);
+  padding: 2.4rem;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: var(--color-text);
+  backdrop-filter: blur(14px);
 }
 
 .create-session-card h3,
 .join-session-card h3 {
-  color: #333;
-  margin-bottom: 1.5rem;
+  color: var(--color-text);
+  margin-bottom: 1.6rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  font-size: 1.2rem;
 }
 
 .session-form {
@@ -325,8 +342,8 @@ export default {
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #555;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .form-group label .optional {
@@ -338,24 +355,26 @@ export default {
 
 .form-input {
   width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 1rem;
-  transition: border-color 0.3s ease;
+  background: #fff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: rgba(91, 124, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.2);
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 0.85rem 1.6rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
@@ -370,35 +389,35 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-primary);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 10px 25px rgba(91, 124, 250, 0.4);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: #1f2937;
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #5a6268;
+  background: #111827;
   transform: translateY(-2px);
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-top: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: #fecaca;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sm);
+  margin-top: 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid #f5c6cb;
+  border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
 /* Modal Styles */
@@ -408,20 +427,21 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  backdrop-filter: blur(6px);
 }
 
 .modal-content {
-  background: white;
-  border-radius: 16px;
-  max-width: 600px;
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  max-width: 620px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   animation: modalSlideIn 0.3s ease-out;
 }
 
@@ -441,7 +461,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modal-header h3 {
@@ -487,12 +507,12 @@ export default {
 .link-input {
   flex: 1;
   padding: 0.75rem;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 0.9rem;
-  font-family: monospace;
-  background: #f8f9fa;
-  color: #333;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  background: #f8f9fb;
+  color: var(--color-text);
 }
 
 .btn-copy {
